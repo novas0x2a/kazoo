@@ -57,7 +57,7 @@ AUTH_XID = -4
 CLOSE_RESPONSE = Close.type
 
 if sys.version_info > (3, ):  # pragma: nocover
-    def buffer(obj, offset=0):
+    def buffer(obj, offset=0): #pylint: disable=W0622
         return memoryview(obj)[offset:]
 
     advance_iterator = next
@@ -216,7 +216,7 @@ class ConnectionHandler(object):
         self._submit(request, timeout, xid)
         zxid = None
         if xid:
-            header, buffer, offset = self._read_header(timeout)
+            header, buf, offset = self._read_header(timeout)
             if header.xid != xid:
                 raise RuntimeError('xids do not match, expected %r received %r',
                                    xid, header.xid)
@@ -276,9 +276,9 @@ class ConnectionHandler(object):
                     raise ConnectionDropped('socket connection broken')
                 sent += bytes_sent
 
-    def _read_watch_event(self, buffer, offset):
+    def _read_watch_event(self, buf, offset):
         client = self.client
-        watch, offset = Watch.deserialize(buffer, offset)
+        watch, offset = Watch.deserialize(buf, offset)
         path = watch.path
 
         self.logger.info('Received EVENT: %s', watch)
@@ -308,7 +308,7 @@ class ConnectionHandler(object):
         for watch in watchers:
             client.handler.dispatch_callback(Callback('watch', watch, (ev,)))
 
-    def _read_response(self, header, buffer, offset):
+    def _read_response(self, header, buf, offset):
         client = self.client
         request, async_object, xid = client._pending.popleft()
         if header.zxid and header.zxid > 0:
@@ -334,7 +334,7 @@ class ConnectionHandler(object):
                 async_object.set(None)
             else:
                 try:
-                    response = request.deserialize(buffer, offset)
+                    response = request.deserialize(buf, offset)
                 except Exception as exc:
                     self.logger.exception("Exception raised during deserialization"
                                           " of request: %s", request)
@@ -364,7 +364,7 @@ class ConnectionHandler(object):
         """Called when there's something to read on the socket"""
         client = self.client
 
-        header, buffer, offset = self._read_header(read_timeout)
+        header, buf, offset = self._read_header(read_timeout)
         if header.xid == PING_XID:
             self.logger.debug('Received Ping')
             self.ping_outstanding.clear()
@@ -379,11 +379,11 @@ class ConnectionHandler(object):
                 # differently here since the session id is actually valid!
                 client._session_callback(KeeperState.AUTH_FAILED)
         elif header.xid == WATCH_XID:
-            self._read_watch_event(buffer, offset)
+            self._read_watch_event(buf, offset)
         else:
             self.logger.debug('Reading for header %r', header)
 
-            return self._read_response(header, buffer, offset)
+            return self._read_response(header, buf, offset)
 
     def _send_request(self, read_timeout, connect_timeout):
         """Called when we have something to send out on the socket"""
