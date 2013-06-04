@@ -1,5 +1,4 @@
 """Kazoo Zookeeper Client"""
-import errno
 import inspect
 import logging
 import os
@@ -49,11 +48,11 @@ from kazoo.security import OPEN_ACL_UNSAFE
 try:  # pragma: nocover
     basestring
 except NameError:  # pragma: nocover
-    basestring = str
+    basestring = str # pylint: disable=W0622
 
 LOST_STATES = (KeeperState.EXPIRED_SESSION, KeeperState.AUTH_FAILED,
                KeeperState.CLOSED)
-ENVI_VERSION = re.compile('[\w\s:.]*=([\d\.]*).*', re.DOTALL)
+ENVI_VERSION = re.compile(r'[\w\s:.]*=([\d\.]*).*', re.DOTALL)
 log = logging.getLogger(__name__)
 
 
