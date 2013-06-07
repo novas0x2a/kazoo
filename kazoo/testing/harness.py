@@ -12,6 +12,7 @@ from kazoo.protocol.states import (
 )
 from kazoo.testing.common import ZookeeperCluster
 from kazoo.protocol.connection import _SESSION_EXPIRED
+from kazoo import retry
 
 log = logging.getLogger(__name__)
 
@@ -75,8 +76,7 @@ class KazooTestHarness(object):
         return KazooClient(self.servers)
 
     def _get_client(self, **kwargs):
-        kwargs['retry_max_delay'] = 2
-        kwargs['max_retries'] = 35
+        kwargs['retry'] = retry.KazooRetry(max_tries=35, max_delay=2)
         return KazooClient(self.hosts, **kwargs)
 
     def expire_session(self, client_id=None):
