@@ -65,17 +65,25 @@ class AsyncResult(object):
         if self._exception is not _NONE:
             return self._exception
 
-    def set(self, value=None):
+    def set(self, value=None, deduplicate=False):
         """Store the value. Wake up the waiters."""
         with self._condition:
+            if deduplicate:
+                notify = False
+                if self.value != value or self._exception is not None:
+                    notify = True
+            else:
+                notify = True
+
             self.value = value
             self._exception = None
 
-            for callback in self._callbacks:
-                self._handler.completion_queue.put(
-                    lambda: callback(self)
-                )
-            self._condition.notify_all()
+            if notify:
+                for callback in self._callbacks:
+                    self._handler.completion_queue.put(
+                        lambda: callback(self)
+                    )
+                self._condition.notify_all()
 
     def set_exception(self, exception):
         """Store the exception. Wake up the waiters."""

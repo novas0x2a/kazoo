@@ -200,7 +200,8 @@ class KazooClient(object):
 
         # We use events like twitter's client to track current and
         # desired state (connected, and whether to shutdown)
-        self._live = self.handler.event_object()
+        self._live = self.handler.async_result()
+        self._live.set(False)
         self._writer_stopped = self.handler.event_object()
         self._stopped = self.handler.event_object()
         self._stopped.set()
@@ -305,7 +306,7 @@ class KazooClient(object):
                   password.
         :rtype: tuple
         """
-        if self._live.is_set():
+        if self._live.get():
             return (self._session_id, self._session_passwd)
         return None
 
@@ -313,7 +314,7 @@ class KazooClient(object):
     def connected(self):
         """Returns whether the Zookeeper connection has been
         established."""
-        return self._live.is_set()
+        return self._live.get()
 
     def set_hosts(self, hosts, randomize_hosts=None):
         """ sets the list of hosts used by this client.
@@ -415,18 +416,18 @@ class KazooClient(object):
 
         if state in (KeeperState.CONNECTED, KeeperState.CONNECTED_RO):
             self.logger.info("Zookeeper connection established, state: %s", state)
-            self._live.set()
+            self._live.set(True, deduplicate=True)
             self._make_state_change(KazooState.CONNECTED)
         elif state in LOST_STATES:
             self.logger.info("Zookeeper session lost, state: %s", state)
-            self._live.clear()
+            self._live.set(False, deduplicate=False)
             self._make_state_change(KazooState.LOST)
             self._notify_pending(state)
             self._reset()
         else:
             self.logger.info("Zookeeper connection lost")
             # Connection lost
-            self._live.clear()
+            self._live.set(False, deduplicate=True)
             self._notify_pending(state)
             self._make_state_change(KazooState.SUSPENDED)
             self._reset_watchers()
@@ -506,8 +507,8 @@ class KazooClient(object):
                  seconds.
 
         """
-        event = self.start_async()
-        event.wait(timeout=timeout)
+        async = self.start_async()
+        async.wait(timeout=timeout)
         if not self.connected:
             # We time-out, ensure we are disconnected
             self.stop()
@@ -526,7 +527,7 @@ class KazooClient(object):
 
         """
         # If we're already connected, ignore
-        if self._live.is_set():
+        if self._live.get():
             return self._live
 
         # Make sure we're safely closed
@@ -595,7 +596,7 @@ class KazooClient(object):
         .. versionadded:: 0.5
 
         """
-        if not self._live.is_set():
+        if not self._live.get():
             raise ConnectionLoss("No connection to server")
 
         peer = self._connection._socket.getpeername()
