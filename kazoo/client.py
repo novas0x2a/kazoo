@@ -341,6 +341,10 @@ class KazooClient(object):
 
         """
 
+        if self.hosts:
+            raise ConfigurationError("Changing hosts at runtime is not "
+                                     "currently supported")
+
         if randomize_hosts is None:
             randomize_hosts = self.randomize_hosts
 

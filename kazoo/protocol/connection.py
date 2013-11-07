@@ -1,4 +1,5 @@
 """Zookeeper Protocol Connection Handler"""
+import itertools
 import logging
 import os
 import random
@@ -458,9 +459,10 @@ class ConnectionHandler(object):
 
         retry = self.retry_sleeper.copy()
         try:
+            hosts = itertools.cycle(self.client.hosts)
             while not self.client._stopped.is_set():
                 # If the connect_loop returns STOP_CONNECTING, stop retrying
-                if retry(self._connect_loop, retry) is STOP_CONNECTING:
+                if retry(self._connect_loop, hosts, retry) is STOP_CONNECTING:
                     break
         except RetryFailedError:
             self.logger.warning("Failed connecting to Zookeeper "
@@ -470,27 +472,20 @@ class ConnectionHandler(object):
             self.connection_stopped.set()
             self.logger.debug('Connection stopped')
 
-    def _connect_loop(self, retry):
-        # Iterate through the hosts a full cycle before starting over
-        status = None
-        for host, port in self.client.hosts:
-            if self.client._stopped.is_set():
-                status = STOP_CONNECTING
-                break
-            status = self._connect_attempt(host, port, retry)
-            if status is STOP_CONNECTING:
-                break
-
-        if status is STOP_CONNECTING:
+    def _connect_loop(self, hosts, retry):
+        if self.client._stopped.is_set():
+            return STOP_CONNECTING
+        elif self._connect_attempt(hosts, retry) is STOP_CONNECTING:
             return STOP_CONNECTING
         else:
             raise ForceRetryError('Reconnecting')
 
-    def _connect_attempt(self, host, port, retry):
+    def _connect_attempt(self, hosts, retry):
         client = self.client
         TimeoutError = self.handler.timeout_exception
         close_connection = False
 
+        host, port = hosts.next()
         self._socket = None
 
         # Were we given a r/w server? If so, use that instead
@@ -589,7 +584,7 @@ class ConnectionHandler(object):
         # Load return values
         client._session_id = connect_result.session_id
         negotiated_session_timeout = connect_result.time_out
-        connect_timeout = negotiated_session_timeout / len(client.hosts)
+        connect_timeout = negotiated_session_timeout
         read_timeout = negotiated_session_timeout * 2.0 / 3.0
         client._session_passwd = connect_result.passwd
 
